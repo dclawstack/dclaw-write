@@ -3,6 +3,11 @@
 > **The single source of truth for new DClaw app development.**
 > Clone this repo, rename it, fill in your `PRODUCT-SPEC.md`, and hand it to your coding agents.
 
+## Code Manager
+
+- **Name:** Tharuni Dayara
+- **Email:** tharunidayara@gmail.com
+
 ## What This Is
 
 This scaffold contains the **complete boilerplate** for any DClaw vertical SaaS app:
@@ -20,14 +25,14 @@ This scaffold contains the **complete boilerplate** for any DClaw vertical SaaS 
 
 ```bash
 # 1. Clone the scaffold
-git clone https://github.com/dclawstack/dclaw-scaffold.git dclaw-YOURAPP
-cd dclaw-YOURAPP
+git clone https://github.com/dclawstack/dclaw-scaffold.git dclaw-write
+cd dclaw-write
 
 # 2. Find/replace placeholders
-# {APP_NAME}    -> Your app name (e.g., CRM)
-# {BACKEND_PORT}-> Next free port (see port registry below)
-# {FRONTEND_PORT}-> Next free port
-# {DB_NAME}     -> dclaw_yourapp
+# {APP_NAME}    -> Write
+# {BACKEND_PORT}-> 8017
+# {FRONTEND_PORT}-> 3017
+# {DB_NAME}     -> dclaw_write
 
 # 3. Write your PRODUCT-SPEC.md
 # See PRODUCT-SPEC.md.template for the format
@@ -59,7 +64,7 @@ Keep `pytest-asyncio==0.24.0` pinned in `requirements.txt`. v1.3.0 breaks fixtur
 | dclaw-learn | 8093 | 3003 | dclaw_learn |
 | dclaw-code | 8094 | 3005 | dclaw_code |
 | dclaw-legal | 8099 | 3013 | dclaw_legal |
-| dclaw-crm | 8095 | 3006 | dclaw_crm |
+| dclaw-write | 8017 | 3017 | dclaw_write |
 | dclaw-finance | 8096 | 3007 | dclaw_finance |
 | dclaw-hr | 8097 | 3008 | dclaw_hr |
 | **TBD #9** | **8098** | **3009** | **dclaw_xxx** |
