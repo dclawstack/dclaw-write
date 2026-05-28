@@ -1,19 +1,26 @@
 import os
+
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.api.main import app
 from app.core.database import get_db
-from app.models.base import Base
+from app.models import Base  # noqa: F401  (ensures model modules are imported)
 
 TEST_DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/dclaw_app_test",
+    "TEST_DATABASE_URL",
+    os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./test_dclaw_write.db"),
 )
 
-test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+_is_sqlite = TEST_DATABASE_URL.startswith("sqlite")
+
+test_engine = create_async_engine(
+    TEST_DATABASE_URL,
+    poolclass=NullPool,
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
+)
 
 
 async def override_get_db():

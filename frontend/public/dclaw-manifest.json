@@ -1,0 +1,41 @@
+{
+  "id": "write",
+  "name": "DClaw Write",
+  "category": "Content",
+  "tagline": "Long-form writing with Voice DNA, citation-grounded AI, and multi-agent drafting.",
+  "version": "1.0.0",
+  "color": "#3B82F6",
+  "icon": "feather",
+  "backend": {
+    "port": 8017,
+    "healthcheck": "/health/",
+    "base_api": "/api/v1"
+  },
+  "frontend": {
+    "port": 3017,
+    "entry": "/"
+  },
+  "database": "dclaw_write",
+  "features": {
+    "phase_0": [
+      "Project + document CRUD",
+      "Distraction-friendly editor with autosave",
+      "Per-save revision history",
+      "Local SQLite dev DB / Postgres in production"
+    ],
+    "phase_1": [
+      "Voice DNA fingerprinting",
+      "AI Writing Copilot (Ollama-first, OpenRouter fallback)",
+      "Streaming SSE completions",
+      "Voice-match + readability scoring",
+      "Multi-format export"
+    ],
+    "phase_2": [
+      "Multi-agent draft pipeline",
+      "Citation-grounded generation with retrieval",
+      "Cross-platform repurposing",
+      "Eval harness + AI-detection self-check",
+      "Real-time collaboration"
+    ]
+  }
+}
