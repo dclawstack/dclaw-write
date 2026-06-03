@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     access_token_expire_minutes: int = 60
 
+    cors_origins: list[str] = ["http://localhost:5173"]
+
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
     ollama_embed_model: str = "nomic-embed-text"

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import engine, get_db
 from app.core.utils import utc_now
 from app.models.ai_suggestion import AISuggestion
 from app.repositories.ai_suggestion_repo import AISuggestionRepository
@@ -134,9 +134,15 @@ async def stream(
                 style_features,
                 bigram_signature,
             )
-        saved.output = full_text
-        saved.voice_match_score = score
-        await db.commit()
+        # Persist with a fresh session scoped to the generator; the
+        # request-scoped `db` may already be closed by the time the
+        # streaming response finishes producing chunks.
+        async with AsyncSession(engine, expire_on_commit=False) as gen_db:
+            suggestion = await AISuggestionRepository(gen_db).get_by_id(saved.id)
+            if suggestion is not None:
+                suggestion.output = full_text
+                suggestion.voice_match_score = score
+                await gen_db.commit()
         yield f"data: {json.dumps({'type': 'done', 'voice_match_score': score})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
