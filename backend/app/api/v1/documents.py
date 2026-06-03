@@ -273,8 +273,12 @@ async def auto_ground(
         raise HTTPException(status_code=404, detail="Document not found")
 
     sentences = re.split(r"(?<=[.!?])\s+", document.content.strip())
-    suspect = [s for s in sentences if _SUSPECT_RE.search(s)][: payload.max_claims]
-    skipped = len(sentences) - len(suspect)
+    # Compute the full suspect set BEFORE applying max_claims, so `skipped`
+    # counts non-load-bearing sentences — not suspects dropped by the cap (which
+    # the old `len(sentences) - len(suspect[:cap])` conflated together).
+    all_suspect = [s for s in sentences if _SUSPECT_RE.search(s)]
+    suspect = all_suspect[: payload.max_claims]
+    skipped = len(sentences) - len(all_suspect)
 
     citation_repo = CitationRepository(db)
     created_ids: list[uuid.UUID] = []

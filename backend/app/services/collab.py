@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from collections import defaultdict
 from typing import Any, Optional
 
 from fastapi import WebSocket
@@ -72,7 +71,9 @@ class Room:
 
 class RoomRegistry:
     def __init__(self) -> None:
-        self._rooms: dict[str, Room] = defaultdict(lambda: None)  # type: ignore[arg-type]
+        # Plain dict: get() already lazily creates a Room on miss, so the old
+        # defaultdict(lambda: None) was misleading (and inserted None placeholders).
+        self._rooms: dict[str, Room] = {}
 
     def get(self, document_id: str) -> Room:
         room = self._rooms.get(document_id)

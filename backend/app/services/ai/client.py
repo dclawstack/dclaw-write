@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import random
 import time
 from dataclasses import dataclass, field
@@ -275,16 +276,21 @@ def _mock_stream_chunks(prompt: str, seed_bigrams: list[str]) -> list[str]:
 
 
 _client_instance: Optional[AIClient] = None
+_client_lock = threading.Lock()
 
 
 def get_ai_client() -> AIClient:
     global _client_instance
+    # Double-checked locking so concurrent callers can't race two AIClient
+    # instances into existence (and the lock-free fast path stays cheap).
     if _client_instance is None:
-        settings = get_settings()
-        _client_instance = AIClient(
-            ollama_url=settings.ollama_url,
-            ollama_model=settings.ollama_model,
-            openrouter_api_key=settings.openrouter_api_key or None,
-            openrouter_model=settings.openrouter_model,
-        )
+        with _client_lock:
+            if _client_instance is None:
+                settings = get_settings()
+                _client_instance = AIClient(
+                    ollama_url=settings.ollama_url,
+                    ollama_model=settings.ollama_model,
+                    openrouter_api_key=settings.openrouter_api_key or None,
+                    openrouter_model=settings.openrouter_model,
+                )
     return _client_instance
