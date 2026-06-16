@@ -20,6 +20,8 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
   const [streaming, setStreaming] = useState(false);
   const [sources, setSources] = useState("");
   const [grounding, setGrounding] = useState<GroundResult | null>(null);
+  const [groundError, setGroundError] = useState<string>("");
+  const [groundingBusy, setGroundingBusy] = useState(false);
   const [unsupported, setUnsupported] = useState<string[]>([]);
   const [docId, setDocId] = useState<string | null>(documentId);
   const lastAiText = useRef<string>("");
@@ -159,10 +161,27 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
         body: JSON.stringify({ text: sources, origin: "paste" }),
       });
     }
-    const r = await fetch(`/api/documents/${id}/ground`, { method: "POST" });
-    const result: GroundResult = await r.json();
-    setGrounding(result);
-    setUnsupported(result.claims?.filter((c) => !c.supported).map((c) => c.claim) ?? []);
+    setGroundError("");
+    setGroundingBusy(true);
+    try {
+      const r = await fetch(`/api/documents/${id}/ground`, { method: "POST" });
+      const result = await r.json();
+      if (!r.ok || !Array.isArray(result?.claims)) {
+        setGrounding(null);
+        setUnsupported([]);
+        setGroundError(
+          result?.error ?? "Couldn't check grounding. Add sources, then try again.",
+        );
+        return;
+      }
+      setGrounding(result as GroundResult);
+      setUnsupported(result.claims.filter((c: { supported: boolean }) => !c.supported).map((c: { claim: string }) => c.claim));
+    } catch (e) {
+      setGrounding(null);
+      setGroundError((e as Error).message || "Grounding request failed.");
+    } finally {
+      setGroundingBusy(false);
+    }
   }
 
   return (
@@ -243,11 +262,23 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
           />
         </Panel>
 
-        {grounding && (
+        {groundingBusy && (
+          <Panel title="Grounding">
+            <p className="text-sm text-[var(--muted)]">Checking claims against sources…</p>
+          </Panel>
+        )}
+
+        {!groundingBusy && groundError && (
+          <Panel title="Grounding">
+            <p className="text-sm text-amber-300">{groundError}</p>
+          </Panel>
+        )}
+
+        {!groundingBusy && grounding && Array.isArray(grounding.claims) && (
           <Panel title="Grounding">
             <p className="text-sm">
-              Coverage: <b>{Math.round(grounding.coverage * 100)}%</b> · {grounding.unsupported}{" "}
-              unsupported
+              Coverage: <b>{Math.round((grounding.coverage ?? 0) * 100)}%</b> ·{" "}
+              {grounding.unsupported ?? 0} unsupported
             </p>
             <p
               className={`mt-1 text-sm font-semibold ${
