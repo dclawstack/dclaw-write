@@ -87,3 +87,5 @@ given an API key), migrates, seeds, sets Vercel env, and ships to production.
 | `OPENROUTER_API_KEY` | yes | all LLM calls |
 | `ROUTING_PROFILE` | no | `balanced` (default) |
 | `TAVILY_API_KEY` / `BRAVE_API_KEY` | no | web-search grounding |
+
+<!-- live: https://dclaw-write.vercel.app -->
