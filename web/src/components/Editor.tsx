@@ -19,8 +19,10 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
   const [voiceMatch, setVoiceMatch] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [sources, setSources] = useState("");
-  const [attachedSources, setAttachedSources] = useState<{ id: string; title: string | null; text: string }[]>([]);
+  const [attachedSources, setAttachedSources] = useState<{ id: string; title: string | null; text: string; origin?: string }[]>([]);
   const [addingSource, setAddingSource] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [grounding, setGrounding] = useState<GroundResult | null>(null);
   const [groundError, setGroundError] = useState<string>("");
   const [groundingBusy, setGroundingBusy] = useState(false);
@@ -28,6 +30,7 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
   const [docId, setDocId] = useState<string | null>(documentId);
   const lastAiText = useRef<string>("");
   const handle = useRef<EditorHandle | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetch("/api/brand-profiles")
@@ -173,6 +176,49 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
     }
   }
 
+  async function deleteSource(sourceId: string) {
+    // optimistic removal
+    setAttachedSources((prev) => prev.filter((s) => s.id !== sourceId));
+    try {
+      await fetch(`/api/sources/${sourceId}`, { method: "DELETE" });
+    } catch {
+      if (docId) loadSources(docId); // re-sync on failure
+    }
+  }
+
+  const TEXT_EXT = /\.(txt|md|markdown|csv|json|html?|rtf|log|tsv|xml|yaml|yml)$/i;
+
+  async function uploadFiles(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (!list.length) return;
+    setUploadError("");
+    setAddingSource(true);
+    try {
+      const id = await ensureDoc();
+      const skipped: string[] = [];
+      for (const file of list) {
+        const isText = file.type.startsWith("text") || TEXT_EXT.test(file.name);
+        if (!isText) {
+          skipped.push(file.name);
+          continue;
+        }
+        const content = (await file.text()).slice(0, 200_000);
+        if (!content.trim()) continue;
+        await fetch(`/api/documents/${id}/sources`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: content, title: file.name, origin: "upload" }),
+        });
+      }
+      await loadSources(id);
+      if (skipped.length) {
+        setUploadError(`Skipped (text files only): ${skipped.join(", ")}`);
+      }
+    } finally {
+      setAddingSource(false);
+    }
+  }
+
   async function checkGrounding() {
     const id = await ensureDoc();
     const content = handle.current?.getText() ?? text;
@@ -283,31 +329,83 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
         </Panel>
 
         <Panel title={`Sources${attachedSources.length ? ` (${attachedSources.length})` : ""}`}>
+          {/* Drag & drop / browse upload */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              uploadFiles(e.dataTransfer.files);
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`cursor-pointer rounded-lg border border-dashed p-4 text-center text-xs transition ${
+              dragging
+                ? "border-brand bg-brand/10 text-white"
+                : "border-white/15 text-[var(--muted)] hover:border-white/30"
+            }`}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.rtf,.log,.tsv,.xml,.yaml,.yml,text/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) uploadFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <div className="text-lg">⬆</div>
+            <div className="mt-1 font-medium">
+              {dragging ? "Drop files to upload" : "Drag & drop files, or click to browse"}
+            </div>
+            <div className="mt-0.5 opacity-70">Text files — .txt, .md, .csv, …</div>
+          </div>
+
+          {uploadError && <p className="mt-2 text-xs text-amber-300">{uploadError}</p>}
+
+          {/* Attached sources with delete */}
           {attachedSources.length > 0 && (
-            <ul className="mb-3 space-y-1.5">
+            <ul className="mt-3 space-y-1.5">
               {attachedSources.map((s) => (
                 <li
                   key={s.id}
-                  className="truncate rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs"
-                  title={s.text}
+                  className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs"
                 >
-                  📄 {s.title || s.text.slice(0, 60) + "…"}
+                  <span className="truncate" title={s.text}>
+                    {s.origin === "upload" ? "📎" : "📄"}{" "}
+                    {s.title || s.text.slice(0, 48) + "…"}
+                  </span>
+                  <button
+                    onClick={() => deleteSource(s.id)}
+                    aria-label="Delete source"
+                    title="Delete source"
+                    className="ml-auto flex-none rounded px-1.5 py-0.5 text-[var(--muted)] hover:bg-red-500/15 hover:text-red-400"
+                  >
+                    ✕
+                  </button>
                 </li>
               ))}
             </ul>
           )}
+
+          {/* Or paste text */}
           <textarea
             value={sources}
             onChange={(e) => setSources(e.target.value)}
-            placeholder="Paste reference material here (Cmd/Ctrl+V), then Add source. Claims are checked against these."
-            className="h-28 w-full resize-none rounded-lg border border-white/10 bg-[var(--panel)] p-2 text-sm outline-none focus:border-brand"
+            placeholder="…or paste reference text (Cmd/Ctrl+V), then Add."
+            className="mt-3 h-24 w-full resize-none rounded-lg border border-white/10 bg-[var(--panel)] p-2 text-sm outline-none focus:border-brand"
           />
           <button
             onClick={addSource}
             disabled={addingSource || !sources.trim()}
             className="mt-2 w-full rounded-lg border border-white/15 px-3 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-40"
           >
-            {addingSource ? "Adding…" : "Add source"}
+            {addingSource ? "Adding…" : "Add pasted text"}
           </button>
           {attachedSources.length === 0 && (
             <p className="mt-2 text-xs text-[var(--muted)]">
