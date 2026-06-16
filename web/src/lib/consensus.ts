@@ -110,24 +110,39 @@ async function judge(
     },
   ];
   const r = await chat(judgeModel(), prompt, { maxTokens: 60, temperature: 0 });
-  let index = 0;
-  let confidence = 0.5;
-  try {
-    const m = r.text.match(/\{[\s\S]*\}/);
-    if (m) {
-      const parsed = JSON.parse(m[0]);
-      index = Math.max(0, Math.min(candidates.length - 1, (parsed.best ?? 1) - 1));
-      confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0.5;
-    }
-  } catch {
-    // fall back to first candidate
-  }
+  const { index, confidence } = parseJudgeVerdict(r.text, candidates.length);
   return {
     index,
     agreement: confidence,
     promptTokens: r.promptTokens,
     completionTokens: r.completionTokens,
   };
+}
+
+// Pure, defensively-parsed extraction of a judge model's verdict. Models return
+// malformed JSON, prose preambles, or out-of-range indices — all clamped here so
+// the router never throws on a bad judge response.
+export function parseJudgeVerdict(
+  text: string,
+  candidateCount: number,
+): { index: number; confidence: number } {
+  const fallback = { index: 0, confidence: 0.5 };
+  if (candidateCount <= 0) return fallback;
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return fallback;
+  try {
+    const parsed = JSON.parse(m[0]);
+    const best = Number(parsed.best);
+    const index = Number.isFinite(best)
+      ? Math.max(0, Math.min(candidateCount - 1, Math.round(best) - 1))
+      : 0;
+    let confidence = Number(parsed.confidence);
+    if (!Number.isFinite(confidence)) confidence = 0.5;
+    confidence = Math.max(0, Math.min(1, confidence));
+    return { index, confidence };
+  } catch {
+    return fallback;
+  }
 }
 
 export { complexityFor };
