@@ -47,10 +47,10 @@ Legend: ⬜ todo · 🟦 in progress · ✅ done · ⛔ blocked (needs key)
 - 🟦 Live voice-match score in editor
 
 ### M3 — Citation grounding
-- ⬜ Source ingestion (paste/upload) + chunk + embed
-- ⬜ Web search ingestion (Tavily/Brave) — optional
-- ⬜ Generate-with-citations: every paragraph carries source refs
-- ⬜ Unsupported-claim detector blocks "publish"
+- ✅ Source ingestion (paste) + chunk + embed
+- ✅ Web search ingestion (Tavily/Brave) — optional, wired into ground route
+- ✅ Generate-with-citations: claims carry source refs + confidence
+- ✅ Unsupported-claim detector blocks "publish"
 
 ### M4 — Editor & product surface
 - ⬜ TipTap block editor with inline AI + citation chips
@@ -67,12 +67,13 @@ Legend: ⬜ todo · 🟦 in progress · ✅ done · ⛔ blocked (needs key)
 ---
 
 ## Progress Metrics (updated each step)
-- Build: ✅ green (`npm run build` — 3 pages + 11 API routes)
-- Routes implemented: 11 (`/api/ai/{complete,generate,edits}`, brand-profiles ×3, documents ×4, grounding, sources)
-- Core libs: voice-dna (ported + validated), consensus router, models catalog, openrouter, grounding
-- Voice DNA: ✅ validated (discriminates terse vs ornate prose)
+- Build: ✅ green — 4 pages + 12 API routes
+- Tests: ✅ 23 passing (voice-dna, model routing, grounding claim extraction)
+- Core libs: voice-dna (validated), consensus router, models catalog, openrouter, grounding, websearch
+- Demo seed: ✅ ready (`npm run db:seed-demo` — Acme voice + draft + source)
+- Deploy automation: ✅ `web/scripts/deploy.sh` (one command once keys are in)
 - Deployed: not yet
-- Blocked on (only these): `NEON_API_KEY` or `DATABASE_URL`, and `OPENROUTER_API_KEY` → then DEPLOY-RUNBOOK.md runs autonomously
+- Blocked on (only these): `NEON_API_KEY` or `DATABASE_URL`, and `OPENROUTER_API_KEY` → then `deploy.sh` runs end-to-end
 
 ## Decision Log
 - 2026-06-16 — Pivot from FastAPI+Docker+K8s to Next.js full-stack on Vercel. Reason: goal mandates serverless Vercel + Neon + OpenRouter. Python business logic (voice DNA, grounding) ported to TS.

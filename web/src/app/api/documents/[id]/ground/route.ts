@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db/client";
 import { groundDraft } from "@/lib/grounding";
+import { webSearch, webSearchEnabled } from "@/lib/websearch";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -10,10 +11,11 @@ export const maxDuration = 60;
 // Verifies every checkable claim in the document against its sources.
 // Persists citations and flips status to "grounded" only if nothing is unsupported.
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const body = await req.json().catch(() => ({}));
 
   const [doc] = await db
     .select()
@@ -22,6 +24,22 @@ export async function POST(
     .limit(1);
   if (!doc) return NextResponse.json({ error: "not found" }, { status: 404 });
 
+  // Optionally pull live web sources to ground against, not just pasted ones.
+  if (body.useWeb && webSearchEnabled()) {
+    const hits = await webSearch(doc.title + "\n" + doc.content.slice(0, 300));
+    if (hits.length) {
+      await db.insert(schema.sources).values(
+        hits.map((h) => ({
+          documentId: id,
+          title: h.title,
+          url: h.url,
+          origin: "web",
+          text: h.text,
+        })),
+      );
+    }
+  }
+
   const srcRows = await db
     .select()
     .from(schema.sources)
@@ -29,7 +47,7 @@ export async function POST(
 
   if (!srcRows.length) {
     return NextResponse.json(
-      { error: "no sources attached — add sources before grounding" },
+      { error: "no sources attached — add sources or enable web search" },
       { status: 400 },
     );
   }
