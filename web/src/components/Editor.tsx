@@ -11,7 +11,7 @@ type GroundResult = {
   claims: { claim: string; supported: boolean; confidence: number; quote: string | null }[];
 };
 
-export function Editor() {
+export function Editor({ documentId = null }: { documentId?: string | null }) {
   const [title, setTitle] = useState("Untitled");
   const [text, setText] = useState("");
   const [profiles, setProfiles] = useState<BrandProfile[]>([]);
@@ -21,7 +21,7 @@ export function Editor() {
   const [sources, setSources] = useState("");
   const [grounding, setGrounding] = useState<GroundResult | null>(null);
   const [unsupported, setUnsupported] = useState<string[]>([]);
-  const [docId, setDocId] = useState<string | null>(null);
+  const [docId, setDocId] = useState<string | null>(documentId);
   const lastAiText = useRef<string>("");
   const handle = useRef<EditorHandle | null>(null);
 
@@ -31,6 +31,25 @@ export function Editor() {
       .then((d) => setProfiles(d.items ?? []))
       .catch(() => {});
   }, []);
+
+  // Load an existing document when opened with ?id=.
+  useEffect(() => {
+    if (!documentId) return;
+    let tries = 0;
+    const load = async () => {
+      try {
+        const d = await (await fetch(`/api/documents/${documentId}`)).json();
+        if (d?.id) {
+          setTitle(d.title ?? "Untitled");
+          setBrandProfileId(d.brandProfileId ?? "");
+          // Wait for the editor handle to register before injecting content.
+          if (handle.current) handle.current.setText(d.content ?? "");
+          else if (tries++ < 20) setTimeout(load, 100);
+        }
+      } catch {}
+    };
+    load();
+  }, [documentId]);
 
   // Debounced live voice-match score.
   useEffect(() => {
@@ -111,6 +130,20 @@ export function Editor() {
     } catch {}
   }
 
+  async function save() {
+    const id = await ensureDoc();
+    await fetch(`/api/documents/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        content: handle.current?.getText() ?? text,
+        brandProfileId: brandProfileId || null,
+        voiceMatch,
+      }),
+    });
+  }
+
   async function checkGrounding() {
     const id = await ensureDoc();
     const content = handle.current?.getText() ?? text;
@@ -161,6 +194,12 @@ export function Editor() {
             className="rounded-lg border border-white/15 px-4 py-2 font-medium hover:bg-white/5"
           >
             Check grounding
+          </button>
+          <button
+            onClick={save}
+            className="rounded-lg border border-white/15 px-4 py-2 font-medium hover:bg-white/5"
+          >
+            Save
           </button>
           <span className="text-sm text-[var(--muted)]">
             {text.trim().split(/\s+/).filter(Boolean).length} words

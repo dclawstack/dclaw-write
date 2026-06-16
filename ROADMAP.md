@@ -53,10 +53,10 @@ Legend: ⬜ todo · 🟦 in progress · ✅ done · ⛔ blocked (needs key)
 - ✅ Unsupported-claim detector blocks "publish"
 
 ### M4 — Editor & product surface
-- ⬜ TipTap block editor with inline AI + citation chips
-- ⬜ Documents list / project workspace
-- ⬜ Brand voice setup flow
-- ⬜ Landing page
+- ✅ TipTap rich editor with streaming AI + inline unsupported-claim highlighting
+- ✅ Documents workspace (list, create, open, save) + editor loads by ?id=
+- ✅ Brand voice setup flow
+- ✅ Landing page
 
 ### M5 — Polish & ship
 - ⬜ Auth (Clerk) wired

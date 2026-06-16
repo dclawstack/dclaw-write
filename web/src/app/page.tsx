@@ -16,10 +16,10 @@ export default function Home() {
       </p>
       <div className="mt-10 flex gap-4">
         <Link
-          href="/editor"
+          href="/documents"
           className="rounded-lg bg-brand px-5 py-3 font-medium text-white hover:opacity-90"
         >
-          Open the editor
+          Open workspace
         </Link>
         <Link
           href="/brand"
