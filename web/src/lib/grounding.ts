@@ -74,7 +74,7 @@ async function retrieve(claim: string, chunks: Chunk[], topK = 3): Promise<Chunk
   }
 }
 
-const GROUND_MODEL = "google/gemini-2.0-flash-001"; // cheap, good at extraction
+const GROUND_MODEL = "google/gemini-2.5-flash"; // cheap, good at extraction
 
 async function checkClaim(claim: string, passages: Chunk[]): Promise<GroundedClaim> {
   if (!passages.length) {

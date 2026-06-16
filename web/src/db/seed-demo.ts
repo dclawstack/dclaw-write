@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { eq } from "drizzle-orm";
 import { brandProfiles, voiceSamples, documents, sources } from "./schema";
 import { fitProfile } from "../lib/voice-dna";
+import { embed } from "../lib/openrouter";
 
 const SAMPLE_VOICE = `We don't ship features. We ship outcomes.
 
@@ -21,13 +22,29 @@ async function main() {
   if (!url) throw new Error("DATABASE_URL is required");
   const db = drizzle(neon(url));
 
+  // Semantic voice centroid — best-effort (needs OPENROUTER_API_KEY).
+  let voiceEmbedding: number[] | null = null;
+  try {
+    voiceEmbedding = (await embed(SAMPLE_VOICE)).vector;
+  } catch {
+    voiceEmbedding = null;
+  }
+
   const existing = await db
     .select()
     .from(brandProfiles)
     .where(eq(brandProfiles.name, "Acme (demo voice)"))
     .limit(1);
   if (existing.length) {
-    console.log("demo already seeded — skipping");
+    if (!existing[0].voiceEmbedding && voiceEmbedding) {
+      await db
+        .update(brandProfiles)
+        .set({ voiceEmbedding })
+        .where(eq(brandProfiles.id, existing[0].id));
+      console.log("demo exists — backfilled voice embedding");
+    } else {
+      console.log("demo already seeded — skipping");
+    }
     return;
   }
 
@@ -41,6 +58,7 @@ async function main() {
       bigramSignature: fit.bigramSignature,
       sampleCount: 1,
       totalWords: fit.totalWords,
+      ...(voiceEmbedding ? { voiceEmbedding } : {}),
     })
     .returning();
 

@@ -1,4 +1,4 @@
-CREATE SCHEMA "_meta";
+CREATE SCHEMA IF NOT EXISTS "_meta";
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "ai_edits" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

@@ -22,10 +22,10 @@ export const CATALOG: ModelSpec[] = [
     strengths: ["classify", "score", "extract", "shortform"],
   },
   {
-    id: "google/gemini-2.0-flash-001",
+    id: "google/gemini-2.5-flash",
     tier: "cheap",
-    inPrice: 0.1,
-    outPrice: 0.4,
+    inPrice: 0.3,
+    outPrice: 2.5,
     strengths: ["classify", "ground", "extract", "shortform"],
   },
   {
@@ -43,7 +43,7 @@ export const CATALOG: ModelSpec[] = [
     strengths: ["longform", "voice", "rewrite", "headline"],
   },
   {
-    id: "anthropic/claude-3.7-sonnet",
+    id: "anthropic/claude-sonnet-4",
     tier: "quality",
     inPrice: 3,
     outPrice: 15,
@@ -133,7 +133,7 @@ export function selectPanel(task: string): ModelSpec[] {
 
 // A cheap model to act as the judge that picks the best candidate.
 export function judgeModel(): string {
-  return "google/gemini-2.0-flash-001";
+  return "google/gemini-2.5-flash";
 }
 
 function dedupe(models: ModelSpec[]): ModelSpec[] {
