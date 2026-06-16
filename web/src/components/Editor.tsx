@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RichEditor, EditorHandle } from "./editor/RichEditor";
 
 type BrandProfile = { id: string; name: string };
 type GroundResult = {
@@ -12,15 +13,17 @@ type GroundResult = {
 
 export function Editor() {
   const [title, setTitle] = useState("Untitled");
-  const [content, setContent] = useState("");
+  const [text, setText] = useState("");
   const [profiles, setProfiles] = useState<BrandProfile[]>([]);
   const [brandProfileId, setBrandProfileId] = useState<string>("");
   const [voiceMatch, setVoiceMatch] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [sources, setSources] = useState("");
   const [grounding, setGrounding] = useState<GroundResult | null>(null);
+  const [unsupported, setUnsupported] = useState<string[]>([]);
   const [docId, setDocId] = useState<string | null>(null);
   const lastAiText = useRef<string>("");
+  const handle = useRef<EditorHandle | null>(null);
 
   useEffect(() => {
     fetch("/api/brand-profiles")
@@ -31,74 +34,75 @@ export function Editor() {
 
   // Debounced live voice-match score.
   useEffect(() => {
-    if (!brandProfileId || content.trim().length < 40) return;
+    if (!brandProfileId || text.trim().length < 40) return;
     const t = setTimeout(async () => {
       try {
         const r = await fetch(`/api/brand-profiles/${brandProfileId}/voice-match`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: content }),
+          body: JSON.stringify({ text }),
         });
         const d = await r.json();
         if (typeof d.score === "number") setVoiceMatch(d.score);
       } catch {}
     }, 800);
     return () => clearTimeout(t);
-  }, [content, brandProfileId]);
+  }, [text, brandProfileId]);
 
   const ensureDoc = useCallback(async (): Promise<string> => {
     if (docId) return docId;
     const r = await fetch("/api/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, brandProfileId: brandProfileId || null, content }),
+      body: JSON.stringify({ title, brandProfileId: brandProfileId || null, content: text }),
     });
     const d = await r.json();
     setDocId(d.id);
     return d.id;
-  }, [docId, title, brandProfileId, content]);
+  }, [docId, title, brandProfileId, text]);
 
   async function continueInVoice() {
+    if (!handle.current) return;
     setStreaming(true);
-    const before = content;
     lastAiText.current = "";
+    const prompt = handle.current.getText();
+    handle.current.append(" ");
     try {
       const r = await fetch("/api/ai/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: content, brandProfileId: brandProfileId || null }),
+        body: JSON.stringify({ prompt, brandProfileId: brandProfileId || null }),
       });
       if (!r.body) throw new Error("no stream");
       const reader = r.body.getReader();
       const dec = new TextDecoder();
-      let acc = before ? before + " " : "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = dec.decode(value, { stream: true });
         lastAiText.current += chunk;
-        acc += chunk;
-        setContent(acc);
+        handle.current.append(chunk);
       }
     } catch (e) {
-      setContent((c) => c + `\n[generation error: ${(e as Error).message}]`);
+      handle.current.append(`\n[generation error: ${(e as Error).message}]`);
     } finally {
       setStreaming(false);
     }
   }
 
-  // When the user edits, capture how they changed the last AI output (the moat).
+  // Capture how the user changed the last AI output (the moat).
   async function captureEditOnBlur() {
     const ai = lastAiText.current.trim();
     if (!ai) return;
-    if (content.includes(ai)) return; // unchanged — nothing to learn
+    const current = handle.current?.getText() ?? text;
+    if (current.includes(ai)) return; // unchanged
     try {
       await fetch("/api/ai/edits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           aiText: ai,
-          finalText: content,
+          finalText: current,
           documentId: docId,
           brandProfileId: brandProfileId || null,
         }),
@@ -109,6 +113,7 @@ export function Editor() {
 
   async function checkGrounding() {
     const id = await ensureDoc();
+    const content = handle.current?.getText() ?? text;
     await fetch(`/api/documents/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -122,7 +127,9 @@ export function Editor() {
       });
     }
     const r = await fetch(`/api/documents/${id}/ground`, { method: "POST" });
-    setGrounding(await r.json());
+    const result: GroundResult = await r.json();
+    setGrounding(result);
+    setUnsupported(result.claims?.filter((c) => !c.supported).map((c) => c.claim) ?? []);
   }
 
   return (
@@ -133,13 +140,14 @@ export function Editor() {
           onChange={(e) => setTitle(e.target.value)}
           className="w-full bg-transparent text-2xl font-bold outline-none"
         />
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onBlur={captureEditOnBlur}
-          placeholder="Start writing, then continue in your brand voice…"
-          className="mt-4 h-[60vh] w-full resize-none rounded-xl border border-white/10 bg-[var(--panel)] p-4 leading-7 outline-none focus:border-brand"
-        />
+        <div className="mt-4">
+          <RichEditor
+            onTextChange={setText}
+            onBlur={captureEditOnBlur}
+            unsupported={unsupported}
+            registerHandle={(h) => (handle.current = h)}
+          />
+        </div>
         <div className="mt-3 flex items-center gap-3">
           <button
             onClick={continueInVoice}
@@ -155,7 +163,7 @@ export function Editor() {
             Check grounding
           </button>
           <span className="text-sm text-[var(--muted)]">
-            {content.trim().split(/\s+/).filter(Boolean).length} words
+            {text.trim().split(/\s+/).filter(Boolean).length} words
           </span>
         </div>
       </div>
@@ -181,10 +189,7 @@ export function Editor() {
                 <span className="font-semibold">{voiceMatch}/100</span>
               </div>
               <div className="mt-1 h-2 rounded bg-white/10">
-                <div
-                  className="h-2 rounded bg-brand"
-                  style={{ width: `${voiceMatch}%` }}
-                />
+                <div className="h-2 rounded bg-brand" style={{ width: `${voiceMatch}%` }} />
               </div>
             </div>
           )}
@@ -202,8 +207,8 @@ export function Editor() {
         {grounding && (
           <Panel title="Grounding">
             <p className="text-sm">
-              Coverage: <b>{Math.round(grounding.coverage * 100)}%</b> ·{" "}
-              {grounding.unsupported} unsupported
+              Coverage: <b>{Math.round(grounding.coverage * 100)}%</b> · {grounding.unsupported}{" "}
+              unsupported
             </p>
             <p
               className={`mt-1 text-sm font-semibold ${
