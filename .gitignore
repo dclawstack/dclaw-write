@@ -8,3 +8,13 @@
 # Environment
 .env
 .env.local
+
+# --- YC rebuild ---
+SECRETS.local.md
+.env*.local
+node_modules/
+.next/
+web/.next/
+.vercel/
+web/.vercel/
+*.tsbuildinfo
