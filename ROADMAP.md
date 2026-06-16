@@ -3,6 +3,13 @@
 > Single source of truth for what we're building and where we are.
 > Agent updates this after every meaningful step. Mirrored into Neon `_meta.progress` once the DB exists.
 
+## 🚀 LIVE — https://dclaw-write.vercel.app
+Deployed on Vercel + Neon Postgres (pgvector) + OpenRouter. Verified end-to-end:
+live consensus generation, citation grounding with publish gate, statistical+semantic
+voice match, DB-backed progress (`/progress`). 23/25 tasks done; remaining 2 are
+optional (web-search ingestion, Clerk auth). Git connected, Root Directory = `web`;
+production-branch promotion to git-auto-deploy is the one user-side step left.
+
 ## The Product (one sentence)
 AI that generates **publish-ready content in your brand's exact voice, with every factual claim cited** — so content teams ship faster without sounding generic or making things up.
 
