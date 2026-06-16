@@ -187,6 +187,23 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
   }
 
   const TEXT_EXT = /\.(txt|md|markdown|csv|json|html?|rtf|log|tsv|xml|yaml|yml)$/i;
+  const DOC_EXT = /\.(pdf|docx)$/i;
+
+  // Returns extracted text, or null if the file type is unsupported.
+  async function extractFileText(file: File): Promise<string | null> {
+    if (file.type.startsWith("text") || TEXT_EXT.test(file.name)) {
+      return (await file.text()).slice(0, 200_000);
+    }
+    if (DOC_EXT.test(file.name)) {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch("/api/parse", { method: "POST", body: fd });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.text) throw new Error(d?.error || `Couldn't read ${file.name}`);
+      return d.text as string;
+    }
+    return null;
+  }
 
   async function uploadFiles(files: FileList | File[]) {
     const list = Array.from(files);
@@ -195,15 +212,24 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
     setAddingSource(true);
     try {
       const id = await ensureDoc();
-      const skipped: string[] = [];
+      const unsupported: string[] = [];
+      const failed: string[] = [];
       for (const file of list) {
-        const isText = file.type.startsWith("text") || TEXT_EXT.test(file.name);
-        if (!isText) {
-          skipped.push(file.name);
+        let content: string | null;
+        try {
+          content = await extractFileText(file);
+        } catch {
+          failed.push(file.name);
           continue;
         }
-        const content = (await file.text()).slice(0, 200_000);
-        if (!content.trim()) continue;
+        if (content === null) {
+          unsupported.push(file.name);
+          continue;
+        }
+        if (!content.trim()) {
+          failed.push(file.name);
+          continue;
+        }
         await fetch(`/api/documents/${id}/sources`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -211,9 +237,10 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
         });
       }
       await loadSources(id);
-      if (skipped.length) {
-        setUploadError(`Skipped (text files only): ${skipped.join(", ")}`);
-      }
+      const msgs: string[] = [];
+      if (unsupported.length) msgs.push(`Unsupported: ${unsupported.join(", ")}`);
+      if (failed.length) msgs.push(`Couldn't read: ${failed.join(", ")}`);
+      setUploadError(msgs.join(" · "));
     } finally {
       setAddingSource(false);
     }
@@ -352,7 +379,7 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.rtf,.log,.tsv,.xml,.yaml,.yml,text/*"
+              accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json,.html,.htm,.rtf,.log,.tsv,.xml,.yaml,.yml,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
               className="hidden"
               onChange={(e) => {
                 if (e.target.files) uploadFiles(e.target.files);
@@ -363,7 +390,7 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
             <div className="mt-1 font-medium">
               {dragging ? "Drop files to upload" : "Drag & drop files, or click to browse"}
             </div>
-            <div className="mt-0.5 opacity-70">Text files — .txt, .md, .csv, …</div>
+            <div className="mt-0.5 opacity-70">PDF, Word (.docx), or text — .pdf, .docx, .txt, .md, …</div>
           </div>
 
           {uploadError && <p className="mt-2 text-xs text-amber-300">{uploadError}</p>}
