@@ -19,6 +19,8 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
   const [voiceMatch, setVoiceMatch] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [sources, setSources] = useState("");
+  const [attachedSources, setAttachedSources] = useState<{ id: string; title: string | null; text: string }[]>([]);
+  const [addingSource, setAddingSource] = useState(false);
   const [grounding, setGrounding] = useState<GroundResult | null>(null);
   const [groundError, setGroundError] = useState<string>("");
   const [groundingBusy, setGroundingBusy] = useState(false);
@@ -34,7 +36,14 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
       .catch(() => {});
   }, []);
 
-  // Load an existing document when opened with ?id=.
+  const loadSources = useCallback(async (id: string) => {
+    try {
+      const d = await (await fetch(`/api/documents/${id}/sources`)).json();
+      setAttachedSources(d.items ?? []);
+    } catch {}
+  }, []);
+
+  // Load an existing document (and its sources) when opened with ?id=.
   useEffect(() => {
     if (!documentId) return;
     let tries = 0;
@@ -51,7 +60,8 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
       } catch {}
     };
     load();
-  }, [documentId]);
+    loadSources(documentId);
+  }, [documentId, loadSources]);
 
   // Debounced live voice-match score.
   useEffect(() => {
@@ -146,6 +156,23 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
     });
   }
 
+  async function addSource() {
+    if (!sources.trim()) return;
+    setAddingSource(true);
+    try {
+      const id = await ensureDoc();
+      await fetch(`/api/documents/${id}/sources`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: sources, origin: "paste" }),
+      });
+      setSources("");
+      await loadSources(id);
+    } finally {
+      setAddingSource(false);
+    }
+  }
+
   async function checkGrounding() {
     const id = await ensureDoc();
     const content = handle.current?.getText() ?? text;
@@ -160,6 +187,8 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: sources, origin: "paste" }),
       });
+      setSources("");
+      await loadSources(id);
     }
     setGroundError("");
     setGroundingBusy(true);
@@ -253,13 +282,38 @@ export function Editor({ documentId = null }: { documentId?: string | null }) {
           )}
         </Panel>
 
-        <Panel title="Sources">
+        <Panel title={`Sources${attachedSources.length ? ` (${attachedSources.length})` : ""}`}>
+          {attachedSources.length > 0 && (
+            <ul className="mb-3 space-y-1.5">
+              {attachedSources.map((s) => (
+                <li
+                  key={s.id}
+                  className="truncate rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs"
+                  title={s.text}
+                >
+                  📄 {s.title || s.text.slice(0, 60) + "…"}
+                </li>
+              ))}
+            </ul>
+          )}
           <textarea
             value={sources}
             onChange={(e) => setSources(e.target.value)}
-            placeholder="Paste reference material here. Every claim will be checked against it."
-            className="h-32 w-full resize-none rounded-lg border border-white/10 bg-[var(--panel)] p-2 text-sm outline-none"
+            placeholder="Paste reference material here (Cmd/Ctrl+V), then Add source. Claims are checked against these."
+            className="h-28 w-full resize-none rounded-lg border border-white/10 bg-[var(--panel)] p-2 text-sm outline-none focus:border-brand"
           />
+          <button
+            onClick={addSource}
+            disabled={addingSource || !sources.trim()}
+            className="mt-2 w-full rounded-lg border border-white/15 px-3 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-40"
+          >
+            {addingSource ? "Adding…" : "Add source"}
+          </button>
+          {attachedSources.length === 0 && (
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              Add at least one source before checking grounding.
+            </p>
+          )}
         </Panel>
 
         {groundingBusy && (
